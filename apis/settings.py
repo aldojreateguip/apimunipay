@@ -29,7 +29,9 @@ SECRET_KEY = 'django-insecure-x8f4@!*at$i@qpasc$^bkuw@6_t517y^**7=aa!&p2mh@rs_yu
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['127.0.0.1:4343','.ngrok-free.app']
+ALLOWED_HOSTS = ['127.0.0.1','.ngrok-free.app']
+CSRF_TRUSTED_ORIGINS = ['https://apismunipay.munimaynas.gob.pe/','https://d2d0-45-232-151-239.ngrok-free.app']
+
 
 
 # Application definition
