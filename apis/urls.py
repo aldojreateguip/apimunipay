@@ -19,11 +19,10 @@ from . import apis, apisgtm
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('getcontribydni', apis.getcontribydni),
+    path('getcontribuyente', apis.getcontri),
+    # path('getcontribuyente', apis.getcontribydni),
     path('checkcontribuyente', apis.check_contribuyente),
-    path('paydeudas', apis.update_deuda),
-    path('getcontribuyente', apis.get_contribuyente),
-    path('getcontribuyenteapi', apis.get_contribuyenteapi),
+    # path('paydeudas', apis.update_deuda),
     path('getdeudas', apis.get_deuda),
     path('buscar', apis.filter_deuda),
     path('guardarpago', apis.agregar_pago),
