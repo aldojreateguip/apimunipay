@@ -19,7 +19,7 @@ def getcontri(request):
             dni = peticion_data.get('dni')
             codigo = peticion_data.get('codigo')
             
-            params = []
+            params= []
             query = 'EXEC mpayGetContri '
 
             if dni is not None:
@@ -122,7 +122,7 @@ def getcontribydni(request):
         return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
 
 @csrf_exempt
-def get_deuda(request):
+def get_deuda_filter(request):
     if request.method == 'POST':
         try:
             peticion_data = json.loads(request.body)
@@ -132,9 +132,7 @@ def get_deuda(request):
                 contribuyente = fn_getcontri(codcontribuyente)
             else:
                 return JsonResponse({'message': 'Se requiere el parametro contribuyente (codigo de contribuyente)'}, status=400)
-            print('##########################################')
-            print(contribuyente)
-            print('##########################################')
+
             deuda_query = 'EXEC ObtenerDeudasContribuyente @CodContribuyente=%s'
 
             with connection.cursor() as cursor:
@@ -169,24 +167,182 @@ def get_deuda(request):
             return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
         finally:
             cursor.close()
+    else:
+        return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
 
-def filter_deuda(request):
-    return None
+@csrf_exempt
+def get_deudas_search(request):
+    if request.method == 'POST':
+        try:
+            peticion_data = json.loads(request.body)
 
+            contribuyente = peticion_data.get('contribuyente')
+            
+            if contribuyente is not None:
+                cuota = peticion_data.get('cuota')
+                year = peticion_data.get('year')
+                tributo = peticion_data.get('tributo')
+                coactiva = peticion_data.get('coactiva')
+
+
+                search_query = 'EXEC ObtenerDeudasContribuyenteF @CodContribuyente=%s'
+                params = [contribuyente]
+
+                with connection.cursor() as cursor:
+                    if cuota is not None:
+                        search_query += ", @Cuota=%s"
+                        params.append(cuota)
+                    if year is not None:
+                        search_query += ", @AnoDeu=%s"
+                        params.append(year)
+                    if tributo is not None:
+                        search_query += ", @NomTributo=%s"
+                        params.append(tributo)
+                    if coactiva is not None:
+                        search_query += ", @Coactiva=%s"
+                        params.append(coactiva)
+
+                    cursor.execute(search_query, params)
+                    deuda_list = cursor.fetchall()
+
+                    if len(deuda_list) > 0:
+                        col_names = [column[0] for column in cursor.description]
+                        deudas = [dict(zip(col_names, row)) for row in deuda_list]
+                        formatos(deudas)
+                        cursor.close()
+                        return JsonResponse({"deudas": deudas}, status=200)
+                    else:
+                        cursor.close()
+                        return JsonResponse({"context": {}}, status=200)
+            else:
+                return JsonResponse({"message": "proporcione el parametro contribuyente"}, status=200)
+        except Exception as e:
+            return JsonResponse({"message": "ingrese un contribuyente válido", "error": str(e)}, status=500)
+    else:
+        return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
+
+@csrf_exempt
 def agregar_pago(request):
-    return None
+    if request.method == 'POST':
+        try:
+            peticion_data = json.loads(request.body)
+            transaccion_id = peticion_data['transaccion_id']
+            clavedeu = peticion_data['clavedeu']
+            divisa = peticion_data['divisa']
+            tipo_transaccion = peticion_data['tipo_transaccion']
+            anodeu = peticion_data['anodeu']
+            cuota = peticion_data['cuota']
+            nombtributo = peticion_data['nombtributo']
+            order_id = peticion_data['order_id']
+            montopagado = peticion_data['montopagado']
+            metodo_pago = peticion_data['metodo_pago']
+            canal = peticion_data['canal']
+            fecha_creacion = peticion_data['fecha_creacion']
+            fecha_operacion = peticion_data['fecha_operacion']
 
+            with connection.cursor() as cursor:
+                try:
+                    insert_query = 'INSERT INTO munipay_pagos (transaccion_id, clavedeu, divisa, tipo_transaccion, anodeu, cuota, nombtributo, order_id, montopagado, metodo_pago, canal, fecha_creacion, fecha_operacion) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+                    cursor.execute(insert_query, [transaccion_id, clavedeu, divisa, tipo_transaccion, anodeu, cuota, nombtributo, order_id, montopagado, metodo_pago, canal, fecha_creacion, fecha_operacion])
+                    connection.commit()
+                    update_query = 'EXEC mpay_update_prepago @p_canalpago=%s, @p_clavedeu=%s'
+                    cursor.execute(update_query, [canal, clavedeu])
+                    connection.commit()
+                    return JsonResponse({'insert_message': 'Se registro correctamente el pago', 'update_message':'se actualizó correctamente la orden de pago'}, status=200)
+                except Exception as e:
+                    connection.rollback()
+                    return JsonResponse({'message': 'Ocurrió un error en el servidor al registrar el pago', 'error': str(e)}, status=500)
+        except Exception as e:
+            return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
+        finally:
+            cursor.close()
+    else:
+        return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
+
+@csrf_exempt
 def agregar_prepago(request):
-    return None
+    if request.method == 'POST':
+        try:
+            peticion_data = json.loads(request.body)
+            clavedeu = peticion_data['clavedeu']
+            insoluto = peticion_data['insoluto']
+            interes = peticion_data['interes']
+            gastos = peticion_data['gastos']
+            check_query = 'SELECT validar=count(p.clavedeu) FROM munipay_pre_pagos as p WHERE p.clavedeu=%s'
 
-def update_prepagoapi(request):
-    return None
+            with connection.cursor() as cursor:
+                try:
+                    cursor.execute(check_query,[clavedeu])
+                    row = cursor.fetchone()
 
+                    print(row)
+                    
+                    if row[0] > 0:
+                        update_query = 'UPDATE munipay_pre_pagos SET interes=%s, gastos=%s WHERE clavedeu=%s'
+                        cursor.execute(update_query, [interes, gastos, clavedeu])
+                        connection.commit()
+                        return JsonResponse({'message': 'se actualizó correctamente la orden de pago'}, status=200)
+                    else:
+                        insert_query = 'INSERT INTO dbo.munipay_pre_pagos (clavedeu,interes,gastos,insoluto) VALUES (%s, %s, %s, %s)'
+                        cursor.execute(insert_query,[clavedeu,interes,gastos,insoluto])
+                        connection.commit()
+                        return JsonResponse({'message': 'se registró correctamente la orden de pago'}, status=200)
+                except Exception as e:
+                    connection.rollback()
+                    return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
+        except Exception as e:
+            return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
+        finally:
+            cursor.close()
+    else:
+        return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
+    
+@csrf_exempt
 def reporte_deudas(request):
-    return None
+    if request.method == 'POST':
+        try:
+            peticion_data = json.loads(request.body)
+            cod_contribuyente = peticion_data.get('cod_contribuyente')
+            ano_deu = peticion_data.get('ano_deu')
+            cuota1 = peticion_data.get('cuota1')
+            cuota2 = peticion_data.get('cuota2')
+            
+            report_query = 'EXEC ObtenerReporteDeudasFiltro @codContribuyente=%s'
+            params=[cod_contribuyente]
+
+            if ano_deu is not None:
+                report_query+=', @anoDeu=%s'
+                params.append(ano_deu)
+            if cuota1 is not None:
+                report_query+=', @cuota1=%s'
+                params.append(cuota1)
+            if cuota2 is not None:
+                report_query+=', @cuota2=%s'
+                params.append(cuota2)
+            
+
+
+            with connection.cursor() as cursor:
+                cursor.execute(report_query, params)
+                columns = [column[0] for column in cursor.description]
+                rows = cursor.fetchall()
+
+                reporte = [dict(zip(columns, row)) for row in rows]
+            return JsonResponse(reporte, status=200, safe=False)
+        except Exception as e:
+            return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
+        finally:
+            cursor.close()
+    else:
+        return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
 
 def formatos(deudas):
-    return None
+    for deuda in deudas:
+        #deuda['total'] = round(float(deuda['total']), 2)
+        deuda['total'] = "%.2f" % float(deuda['total'])
+        deuda['gastos'] = "%.2f" % float(deuda['gastos'])
+        deuda['insoluto'] = "%.2f" % float(deuda['insoluto'])
+        deuda['interes'] = "%.2f" % float(deuda['interes'])
 
 def getTestValue(request):   
     return None
