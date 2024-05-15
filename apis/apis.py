@@ -301,7 +301,7 @@ def agregar_pago(request):
                 update_query = 'EXEC mpay_update_prepago @p_canalpago=%s, @p_clavedeu=%s'
                 cursor.execute(update_query, [canal, clavedeu])
                 connection.commit()
-                return JsonResponse({'insert_message': 'Se registro correctamente el pago', 'update_message':'se actualizó correctamente la orden de pago'}, status=200)
+                return JsonResponse("Pago completado satisfactoriamente", status=200)
         except Exception as e:
             return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
         finally:
