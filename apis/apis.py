@@ -151,12 +151,12 @@ def get_deuda_filter(request):
                     col_names = [column[0] for column in cursor.description]
                     deudas = [dict(zip(col_names, row)) for row in deudas_list]
                     
+                    contribuyente['confirm'] = '1'
                     
                     years = list(set([deuda['anodeu'] for deuda in deudas]))
                     years.sort(reverse=True)
 
                     tributos = sorted(list(set([deuda['nomtributo'] for deuda in deudas if deuda['nomtributo']])))
-
                     context = {
                         "contri": [contribuyente],
                         "years": years,
@@ -164,13 +164,14 @@ def get_deuda_filter(request):
                     }
                     return JsonResponse({"context": context}, status=200)
                 else:
+                    contribuyente['confirm'] = '0'
                     context = {
-                        "contri": contribuyente,
+                        "contri": [contribuyente],
                         "years": [],
                         "tributos": [],
                     }
                     message = "Este contribuyente no tiene deudas"
-                    return JsonResponse({'context': context, 'message': message}), 200
+                    return JsonResponse({'context': context, 'message': message}, status=200)
         except Exception as e:
             return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
         finally:
@@ -226,9 +227,9 @@ def get_deudas_search(request):
                         return JsonResponse({"deudas": deudas}, status=200)
                     else:
                         cursor.close()
-                        return JsonResponse({"context": {}}, status=200)
+                        return JsonResponse({"deudas": {}}, status=200)
             else:
-                return JsonResponse({"message": "proporcione el parametro contribuyente"}, status=200)
+                return JsonResponse({"message": "proporcione el parametro contribuyente"}, status=200, safe=False)
         except Exception as e:
             return JsonResponse({"message": "ingrese un contribuyente válido", "error": str(e)}, status=500)
     else:
@@ -264,7 +265,7 @@ def agregar_prepago(request):
                         insert_query = 'INSERT INTO dbo.munipay_pre_pagos (clavedeu,interes,gastos,insoluto) VALUES (%s, %s, %s, %s)'
                         cursor.execute(insert_query,[clavedeu,interes,gastos,insoluto])
                         connection.commit()
-                        return JsonResponse({'message': 'se registró correctamente la orden de pago'}, status=200)
+                        return JsonResponse({'message': 'se registró correctamente la orden de pago'}, status=200, safe=False)
                 except Exception as e:
                     connection.rollback()
                     return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
@@ -301,7 +302,7 @@ def agregar_pago(request):
                 update_query = 'EXEC mpay_update_prepago @p_canalpago=%s, @p_clavedeu=%s'
                 cursor.execute(update_query, [canal, clavedeu])
                 connection.commit()
-                return JsonResponse("Pago completado satisfactoriamente", status=200)
+                return JsonResponse("Pago completado satisfactoriamente", status=200, safe=False)
         except Exception as e:
             return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
         finally:
@@ -356,5 +357,13 @@ def formatos(deudas):
         deuda['insoluto'] = "%.2f" % float(deuda['insoluto'])
         deuda['interes'] = "%.2f" % float(deuda['interes'])
 
-def getTestValue(request):   
-    return None
+@csrf_exempt
+def getTestValue(request): 
+    if request.method == 'POST':
+        peticion_data = json.loads(request.body)
+
+        print(peticion_data)
+        return JsonResponse({"message":"datos recibidos"}, status=200, safe=False)
+
+    else: 
+        return None
