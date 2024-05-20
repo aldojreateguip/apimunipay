@@ -27,4 +27,6 @@ urlpatterns = [
     path('guardarprepago', apis.agregar_prepago),
     path('reportedeuda', apis.reporte_deudas),
     path('test', apis.getTestValue),
+    path('delete', apis.limpiar_tablas),
+    path('call', apis.revisar_tablas),
 ]
