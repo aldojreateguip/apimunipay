@@ -8,6 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db import connection
 
 from django.conf import settings
+from django.db import transaction
 
 from cryptography.fernet import Fernet
 
@@ -294,29 +295,23 @@ def agregar_prepago(request):
             insoluto = peticion_data['insoluto']
             interes = peticion_data['interes']
             gastos = peticion_data['gastos']
-            url = peticion_data.get('url')
-            # url = peticion_data.get('url')
-
-            check_query = 'SELECT p.url AS url, count(p.clavedeu) AS validar FROM munipay_pre_pagos as p WHERE p.clavedeu=%s GROUP BY p.url'
+            check_query = 'SELECT count(p.clavedeu) AS validar FROM munipay_pre_pagos as p WHERE p.clavedeu=%s'
 
             with connection.cursor() as cursor:
                 try:
                     cursor.execute(check_query,[clavedeu])
                     row = cursor.fetchone()
 
-                    if row is not None:
-                        url_checked = row[0]
-                        if url_checked == '':
-                            url_checked = url
+                    if row[0] > 0:
                         update_query = 'UPDATE munipay_pre_pagos SET interes=%s, gastos=%s WHERE clavedeu=%s'
                         cursor.execute(update_query, [interes, gastos, clavedeu])
                         connection.commit()
-                        return JsonResponse({'message': 'se actualizó correctamente la orden de pago','url':url_checked}, status=200, safe=False)
+                        return JsonResponse({'message': 'se actualizó correctamente la orden de pago'}, status=200)
                     else:
-                        insert_query = 'INSERT INTO dbo.munipay_pre_pagos (clavedeu,interes,gastos,insoluto, url) VALUES (%s, %s, %s, %s, %s)'
-                        cursor.execute(insert_query,[clavedeu,interes,gastos,insoluto, url])
+                        insert_query = 'INSERT INTO dbo.munipay_pre_pagos (clavedeu,interes,gastos,insoluto) VALUES (%s, %s, %s, %s)'
+                        cursor.execute(insert_query,[clavedeu,interes,gastos,insoluto])
                         connection.commit()
-                        return JsonResponse({'message': 'se registró correctamente la orden de pago','url':url}, status=200, safe=False)
+                        return JsonResponse({'message': 'se registró correctamente la orden de pago'}, status=200, safe=False)
                 except Exception as e:
                     connection.rollback()
                     return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
@@ -346,20 +341,21 @@ def agregar_pago(request):
             fecha_creacion = peticion_data['fecha_creacion']
             fecha_operacion = peticion_data['fecha_operacion']
 
-            with connection.cursor() as cursor:
-                insert_query = 'INSERT INTO munipay_pagos (transaccion_id, clavedeu, divisa, tipo_transaccion, anodeu, cuota, nombtributo, order_id, montopagado, metodo_pago, canal, fecha_creacion, fecha_operacion) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
-                cursor.execute(insert_query, [transaccion_id, clavedeu, divisa, tipo_transaccion, anodeu, cuota, nombtributo, order_id, montopagado, metodo_pago, canal, fecha_creacion, fecha_operacion])
-                connection.commit()
-                update_query = 'EXEC mpay_update_prepago @p_canalpago=%s, @p_clavedeu=%s'
-                cursor.execute(update_query, [canal, clavedeu])
-                connection.commit()
-                return JsonResponse("Pago completado satisfactoriamente", status=200, safe=False)
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    insert_query = 'INSERT INTO munipay_pagos (transaccion_id, clavedeu, divisa, tipo_transaccion, anodeu, cuota, nombtributo, order_id, montopagado, metodo_pago, canal, fecha_creacion, fecha_operacion) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+                    cursor.execute(insert_query, [transaccion_id, clavedeu, divisa, tipo_transaccion, anodeu, cuota, nombtributo, order_id, montopagado, metodo_pago, canal, fecha_creacion, fecha_operacion])
+                    
+                    update_query = 'EXEC mpay_update_prepago @p_canalpago=%s, @p_clavedeu=%s'
+                    cursor.execute(update_query, [canal, clavedeu])
+
+                    return JsonResponse({"message":"completado"},status=200, safe=False)
         except Exception as e:
-            return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
+            return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500, safe=False)
         finally:
             cursor.close()
     else:
-        return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
+        return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405, safe=False)
 
 @csrf_exempt
 def reporte_deudas(request):
