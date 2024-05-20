@@ -235,37 +235,88 @@ def get_deudas_search(request):
     else:
         return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
 
+
+@csrf_exempt
+def limpiar_tablas(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            check_query = 'delete from munipay_pre_pagos;'
+            # check_query = 'delete from munipay_pagos;'
+
+            with connection.cursor() as cursor:
+                try:
+                    cursor.execute(check_query)
+                    connection.commit()
+                    return JsonResponse({'message': 'se limpiaron las tablas'}, status=200)
+                except Exception as e:
+                    connection.rollback()
+                    return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
+        except Exception as e:
+            return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
+        finally:
+            cursor.close()
+    else:
+        return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
+    
+@csrf_exempt
+def revisar_tablas(request):
+    if request.method == 'POST':
+        try:
+            # check_query = 'delete from munipay_pre_pagos;'
+            # check_query = 'select * from munipay_pagos; select * from munipay_pre_pagos;'
+            check_query = 'select * from munipay_pre_pagos;'
+
+            with connection.cursor() as cursor:
+                try:
+                    cursor.execute(check_query)
+                    row = cursor.fetchall()
+                    
+                    connection.commit()
+                    return JsonResponse({'message': 'se halló', "data": row}, status=200)
+                except Exception as e:
+                    connection.rollback()
+                    return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
+        except Exception as e:
+            return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
+        finally:
+            cursor.close()
+    else:
+        return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
+
+
 @csrf_exempt
 def agregar_prepago(request):
     if request.method == 'POST':
         try:
             peticion_data = json.loads(request.body)
             clavedeu = peticion_data['clavedeu']
-            # clavedeu_hex = bytes.fromhex(peticion_data['clavedeu'])
-            # clavedeu = cipher_suite.decrypt(clavedeu_hex).decode()
-            # print(clavedeu)
             insoluto = peticion_data['insoluto']
             interes = peticion_data['interes']
             gastos = peticion_data['gastos']
-            check_query = 'SELECT validar=count(p.clavedeu) FROM munipay_pre_pagos as p WHERE p.clavedeu=%s'
+            url = peticion_data.get('url')
+            # url = peticion_data.get('url')
+
+            check_query = 'SELECT p.url AS url, count(p.clavedeu) AS validar FROM munipay_pre_pagos as p WHERE p.clavedeu=%s GROUP BY p.url'
 
             with connection.cursor() as cursor:
                 try:
                     cursor.execute(check_query,[clavedeu])
                     row = cursor.fetchone()
 
-                    print(row)
-                    
-                    if row[0] > 0:
+                    if row is not None:
+                        url_checked = row[0]
+                        if url_checked == '':
+                            url_checked = url
                         update_query = 'UPDATE munipay_pre_pagos SET interes=%s, gastos=%s WHERE clavedeu=%s'
                         cursor.execute(update_query, [interes, gastos, clavedeu])
                         connection.commit()
-                        return JsonResponse({'message': 'se actualizó correctamente la orden de pago'}, status=200)
+                        return JsonResponse({'message': 'se actualizó correctamente la orden de pago','url':url_checked}, status=200, safe=False)
                     else:
-                        insert_query = 'INSERT INTO dbo.munipay_pre_pagos (clavedeu,interes,gastos,insoluto) VALUES (%s, %s, %s, %s)'
-                        cursor.execute(insert_query,[clavedeu,interes,gastos,insoluto])
+                        insert_query = 'INSERT INTO dbo.munipay_pre_pagos (clavedeu,interes,gastos,insoluto, url) VALUES (%s, %s, %s, %s, %s)'
+                        cursor.execute(insert_query,[clavedeu,interes,gastos,insoluto, url])
                         connection.commit()
-                        return JsonResponse({'message': 'se registró correctamente la orden de pago'}, status=200, safe=False)
+                        return JsonResponse({'message': 'se registró correctamente la orden de pago','url':url}, status=200, safe=False)
                 except Exception as e:
                     connection.rollback()
                     return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
