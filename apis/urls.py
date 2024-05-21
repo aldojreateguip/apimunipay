@@ -15,7 +15,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from . import apis, apisgtm
+from . import apis
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -25,6 +25,7 @@ urlpatterns = [
     path('buscar', apis.get_deudas_search),
     path('guardarpago', apis.agregar_pago),
     path('guardarprepago', apis.agregar_prepago),
+    path('guardarprepagomulti', apis.agregar_prepagomulti),
     path('reportedeuda', apis.reporte_deudas),
     path('test', apis.getTestValue),
     path('delete', apis.limpiar_tablas),

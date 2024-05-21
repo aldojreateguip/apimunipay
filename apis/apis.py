@@ -9,6 +9,7 @@ from django.db import connection
 
 from django.conf import settings
 from django.db import transaction
+from apis.api_functions import fn_agregar_prepago, fn_getcontri
 
 from cryptography.fernet import Fernet
 
@@ -42,79 +43,6 @@ def getcontri(request):
 
             with connection.cursor() as cursor:
                 cursor.execute(query, params)
-                datos = cursor.fetchall()
-
-                contribuyente = {
-                    "CodContribuyente": datos[0][0],
-                    "nombre": datos[0][1],
-                    "Direccion": datos[0][2]
-                }
-            return JsonResponse({"datos":[contribuyente]}, status=200)
-        except Exception as e:
-            return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
-        finally:
-            cursor.close()
-    else:
-        return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
-
-# FUNCION PARA OBTENER DATOS DEL CONTRIBUYENTE
-def fn_getcontri(codigo):
-    with connection.cursor() as contriCursor:
-        contriCursor.execute('EXEC mpayGetContri @codigo=%s', [codigo])
-        datos = contriCursor.fetchall()
-
-        contribuyente = {
-            "CodContribuyente": datos[0][0],
-            "nombre": datos[0][1],
-            "Direccion": datos[0][2]
-        }
-    contriCursor.close()
-    return contribuyente
-
-# WORKING 
-# SE VALIDA LA EXISTENCIA DEL CONTRIBUYENTE EN LA BASE DE DATOS
-#
-@csrf_exempt
-def check_contribuyente(request):
-    if request.method == 'POST':
-        peticion_data = json.loads(request.body)
-        contribuyente = peticion_data.get('contribuyente')
-        dni = peticion_data.get('dni')
-
-        try:
-            with connection.cursor() as cursor:
-                cursor.execute('EXEC mpayValContri @contribuyente=%s,@dni=%s', [contribuyente, dni])
-                datos = cursor.fetchone()
-
-                if datos[0] > 0:
-                    return JsonResponse({"message": "Datos verificados correctamente"}, status=200)
-                else:
-                    return JsonResponse({"message": "No se encontraron coincidencias"}, status=400)
-        except Exception as e:
-            return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
-        finally:
-            cursor.close()
-    else:
-        return JsonResponse({"message": "consultado"})
-
-
-
-# def update_deuda(request):
-
-#     return None
-
-# WORKING
-# SE OBTIENEN LOS DATOS DEL CONTRIBUYENTE ENVIANDO EN VALOR DEL DNI
-# 
-@csrf_exempt
-def getcontribydni(request):
-    if request.method == 'POST':
-        peticion_data = json.loads(request.body)
-        dni = peticion_data.get('dni')
-        
-        try:
-            with connection.cursor() as cursor:
-                cursor.execute('EXEC mpayGetContri @dni=%s', [dni])
                 datos = cursor.fetchall()
 
                 contribuyente = {
@@ -179,6 +107,67 @@ def get_deuda_filter(request):
             cursor.close()
     else:
         return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
+
+# WORKING 
+# SE VALIDA LA EXISTENCIA DEL CONTRIBUYENTE EN LA BASE DE DATOS
+#
+@csrf_exempt
+def check_contribuyente(request):
+    if request.method == 'POST':
+        peticion_data = json.loads(request.body)
+        contribuyente = peticion_data.get('contribuyente')
+        dni = peticion_data.get('dni')
+
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute('EXEC mpayValContri @contribuyente=%s,@dni=%s', [contribuyente, dni])
+                datos = cursor.fetchone()
+
+                if datos[0] > 0:
+                    return JsonResponse({"message": "Datos verificados correctamente"}, status=200)
+                else:
+                    return JsonResponse({"message": "No se encontraron coincidencias"}, status=400)
+        except Exception as e:
+            return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
+        finally:
+            cursor.close()
+    else:
+        return JsonResponse({"message": "consultado"})
+
+
+
+# def update_deuda(request):
+
+#     return None
+
+# WORKING
+# SE OBTIENEN LOS DATOS DEL CONTRIBUYENTE ENVIANDO EN VALOR DEL DNI
+# 
+@csrf_exempt
+def getcontribydni(request):
+    if request.method == 'POST':
+        peticion_data = json.loads(request.body)
+        dni = peticion_data.get('dni')
+        
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute('EXEC mpayGetContri @dni=%s', [dni])
+                datos = cursor.fetchall()
+
+                contribuyente = {
+                    "CodContribuyente": datos[0][0],
+                    "nombre": datos[0][1],
+                    "Direccion": datos[0][2]
+                }
+            return JsonResponse({"datos":[contribuyente]}, status=200)
+        except Exception as e:
+            return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
+        finally:
+            cursor.close()
+    else:
+        return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
+
+
 
  
 
@@ -285,6 +274,17 @@ def revisar_tablas(request):
     else:
         return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
 
+@csrf_exempt
+def agregar_prepagomulti(request):
+    if request.method == 'POST':
+        try:
+            peticion_data = json.loads(request.body)
+            fn_agregar_prepago(peticion_data)
+            return JsonResponse({'message': 'success'}, status=200, safe=False)
+        except Exception as e:
+            return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
+    else:
+        return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
 
 @csrf_exempt
 def agregar_prepago(request):
@@ -343,7 +343,8 @@ def agregar_pago(request):
 
             with transaction.atomic():
                 with connection.cursor() as cursor:
-                    insert_query = 'INSERT INTO munipay_pagos (transaccion_id, clavedeu, divisa, tipo_transaccion, anodeu, cuota, nombtributo, order_id, montopagado, metodo_pago, canal, fecha_creacion, fecha_operacion) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+                    insert_query = 'EXEC sp_mpay_insert_pago @transaccion_id=%s, @clavedeu=%s, @divisa=%s, @tipo_transaccion=%s, @anodeu=%s, @cuota=%s, @nombtributo=%s, @order_id=%s, @montopagado=%s, @metodo_pago=%s, @canal=%s, @fecha_creacion=%s, @fecha_operacion=%s'
+                    # insert_query = 'INSERT INTO munipay_pagos (transaccion_id, clavedeu, divisa, tipo_transaccion, anodeu, cuota, nombtributo, order_id, montopagado, metodo_pago, canal, fecha_creacion, fecha_operacion) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
                     cursor.execute(insert_query, [transaccion_id, clavedeu, divisa, tipo_transaccion, anodeu, cuota, nombtributo, order_id, montopagado, metodo_pago, canal, fecha_creacion, fecha_operacion])
                     
                     update_query = 'EXEC mpay_update_prepago @p_canalpago=%s, @p_clavedeu=%s'
