@@ -280,7 +280,7 @@ def agregar_prepagomulti(request):
         try:
             peticion_data = json.loads(request.body)
             fn_agregar_prepago(peticion_data)
-            return JsonResponse({'message': 'success'}, status=200)
+            return JsonResponse({'message': 'success'}, status=200, safe=False)
         except Exception as e:
             return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
     else:
@@ -343,7 +343,8 @@ def agregar_pago(request):
 
             with transaction.atomic():
                 with connection.cursor() as cursor:
-                    insert_query = 'INSERT INTO munipay_pagos (transaccion_id, clavedeu, divisa, tipo_transaccion, anodeu, cuota, nombtributo, order_id, montopagado, metodo_pago, canal, fecha_creacion, fecha_operacion) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+                    insert_query = 'EXEC sp_mpay_insert_pago @transaccion_id=%s, @clavedeu=%s, @divisa=%s, @tipo_transaccion=%s, @anodeu=%s, @cuota=%s, @nombtributo=%s, @order_id=%s, @montopagado=%s, @metodo_pago=%s, @canal=%s, @fecha_creacion=%s, @fecha_operacion=%s'
+                    # insert_query = 'INSERT INTO munipay_pagos (transaccion_id, clavedeu, divisa, tipo_transaccion, anodeu, cuota, nombtributo, order_id, montopagado, metodo_pago, canal, fecha_creacion, fecha_operacion) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
                     cursor.execute(insert_query, [transaccion_id, clavedeu, divisa, tipo_transaccion, anodeu, cuota, nombtributo, order_id, montopagado, metodo_pago, canal, fecha_creacion, fecha_operacion])
                     
                     update_query = 'EXEC mpay_update_prepago @p_canalpago=%s, @p_clavedeu=%s'
