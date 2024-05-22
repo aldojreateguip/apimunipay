@@ -217,10 +217,6 @@ def getcontribydni(request):
     else:
         return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
 
-
-
- 
-
 @csrf_exempt
 def get_deudas_search(request):
     if request.method == 'POST':
@@ -329,10 +325,14 @@ def agregar_prepagomulti(request):
     if request.method == 'POST':
         try:
             peticion_data = json.loads(request.body)
-            print(peticion_data)
-            fn_agregar_prepago(peticion_data)
-
-            return JsonResponse({'message': 'success'}, status=200, safe=False)
+            status = fn_agregar_prepago(peticion_data)
+            print(status)
+            if status == True:
+                print('es verdadero')
+                print(status)
+                return JsonResponse({'message': 'completado'}, status=200, safe=False)
+            else:
+                return JsonResponse({'message': 'truncado'}, status=500, safe=False)
         except Exception as e:
             return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
     else:
@@ -415,14 +415,19 @@ def agregar_pago_multi(request):
     if request.method == 'POST':
         try:
             peticion_data = json.loads(request.body)
-            fn_agregar_pago(peticion_data)
-            return JsonResponse({"message":"completado"},status=200, safe=False)
+            status = fn_agregar_pago(peticion_data)
+            print(status)
+            if status == True:
+                print('es verdadero')
+                print(status)
+                return JsonResponse({"message":"completado"},status=200, safe=False)
+            else:
+                return JsonResponse({'message': 'truncado'}, status=500, safe=False)
         except Exception as e:
             return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500, safe=False)
 
     else:
         return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405, safe=False)
-
 
 
 @csrf_exempt
