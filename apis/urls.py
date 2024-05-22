@@ -24,6 +24,7 @@ urlpatterns = [
     path('getdeudas', apis.get_deuda_filter),
     path('buscar', apis.get_deudas_search),
     path('guardarpago', apis.agregar_pago),
+    path('guardarpagomulti', apis.agregar_pago_multi),
     path('guardarprepago', apis.agregar_prepago),
     path('guardarprepagomulti', apis.agregar_prepagomulti),
     path('reportedeuda', apis.reporte_deudas),

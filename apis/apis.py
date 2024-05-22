@@ -9,7 +9,7 @@ from django.db import connection
 
 from django.conf import settings
 from django.db import transaction
-from apis.api_functions import fn_agregar_prepago, fn_getcontri
+from apis.api_functions import fn_agregar_prepago, fn_getcontri, fn_agregar_pago
 
 from cryptography.fernet import Fernet
 
@@ -59,7 +59,7 @@ def getcontri(request):
         return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
 
 @csrf_exempt
-def get_deuda_filter(request):
+def get_deuda_filter_2(request):
     if request.method == 'POST':
         try:
             peticion_data = json.loads(request.body)
@@ -90,6 +90,56 @@ def get_deuda_filter(request):
                         "contri": [contribuyente],
                         "years": years,
                         "tributos": tributos,
+                    }
+                    return JsonResponse({"context": context}, status=200)
+                else:
+                    contribuyente['confirm'] = '0'
+                    context = {
+                        "contri": [contribuyente],
+                        "years": [],
+                        "tributos": [],
+                    }
+                    message = "Este contribuyente no tiene deudas"
+                    return JsonResponse({'context': context, 'message': message}, status=200)
+        except Exception as e:
+            return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
+        finally:
+            cursor.close()
+    else:
+        return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405)
+    
+@csrf_exempt
+def get_deuda_filter(request):
+    if request.method == 'POST':
+        try:
+            peticion_data = json.loads(request.body)
+            codcontribuyente = peticion_data.get('contribuyente')
+
+            if codcontribuyente is not None:
+                contribuyente = fn_getcontri(codcontribuyente)
+            else:
+                return JsonResponse({'message': 'Se requiere el parametro contribuyente (codigo de contribuyente)'}, status=400)
+
+            anios_query = 'EXEC sp_mpay_getAnios @CodContribuyente=%s'
+            concepts_query = 'EXEC sp_mpay_getConceptos @CodContribuyente=%s'
+
+            with connection.cursor() as cursor:
+                cursor.execute(anios_query, [codcontribuyente])
+                anios = cursor.fetchall()
+
+                cursor.execute(concepts_query, [codcontribuyente])
+                concepts = cursor.fetchall()
+
+                
+                if len(anios and concepts) > 0:
+                    contribuyente['confirm'] = '1'
+                    anios_list = [anio[0] for anio in anios]
+                    concepts_list = [concept[0] for concept in concepts]
+
+                    context = {
+                        "contri": [contribuyente],
+                        "years": anios_list,
+                        "tributos": concepts_list,
                     }
                     return JsonResponse({"context": context}, status=200)
                 else:
@@ -279,7 +329,9 @@ def agregar_prepagomulti(request):
     if request.method == 'POST':
         try:
             peticion_data = json.loads(request.body)
+            print(peticion_data)
             fn_agregar_prepago(peticion_data)
+
             return JsonResponse({'message': 'success'}, status=200, safe=False)
         except Exception as e:
             return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
@@ -357,6 +409,21 @@ def agregar_pago(request):
             cursor.close()
     else:
         return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405, safe=False)
+
+@csrf_exempt
+def agregar_pago_multi(request):
+    if request.method == 'POST':
+        try:
+            peticion_data = json.loads(request.body)
+            fn_agregar_pago(peticion_data)
+            return JsonResponse({"message":"completado"},status=200, safe=False)
+        except Exception as e:
+            return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500, safe=False)
+
+    else:
+        return JsonResponse({'message': 'Ocurrio un error en la solicitud'}, status=405, safe=False)
+
+
 
 @csrf_exempt
 def reporte_deudas(request):
