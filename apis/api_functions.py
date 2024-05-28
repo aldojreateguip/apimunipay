@@ -24,10 +24,11 @@ def fn_getcontri(codigo):
                 contribuyente = None
                 return contribuyente
             
+
             contribuyente = {
-                "CodContribuyente": datos[0][0],
-                "nombre": datos[0][1],
-                "Direccion": datos[0][2]
+                "CodContribuyente": datos,
+                "nombre": datos,
+                "Direccion": datos
             }
         contriCursor.close()
         return contribuyente

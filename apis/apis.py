@@ -57,12 +57,22 @@ def getcontri(request):
                 if not datos:
                     return JsonResponse({'message': 'Contribuyente no encontrado'}, status=404)
 
-                contribuyente = {
-                    "CodContribuyente": datos[0][0],
-                    "nombre": datos[0][1],
-                    "Direccion": datos[0][2]
-                }
-            return JsonResponse({"datos":[contribuyente]}, status=200)
+                # contribuyente = {
+                #     "CodContribuyente": datos,
+                #     "nombre": datos[0][1],
+                #     "Direccion": datos[0][2]
+                # }
+                                
+                contribuyente = []
+                for linea in datos:
+                    contribuyente_datos = {
+                        "CodContribuyente": linea[0],
+                        "nombre": linea[1],
+                        "Direccion": linea[2]
+                    }
+                    contribuyente.append(contribuyente_datos)
+                
+            return JsonResponse({"datos":contribuyente}, status=200, safe=False)
         except Exception as e:
             return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
         finally:
