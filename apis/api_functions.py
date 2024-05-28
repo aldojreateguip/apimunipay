@@ -19,16 +19,15 @@ def fn_getcontri(codigo):
         with connection.cursor() as contriCursor:
             contriCursor.execute('EXEC mpayGetContri @codigo=%s', [codigo])
             datos = contriCursor.fetchall()
-
             if not datos:
                 contribuyente = None
                 return contribuyente
             
 
             contribuyente = {
-                "CodContribuyente": datos,
-                "nombre": datos,
-                "Direccion": datos
+                "CodContribuyente": datos[0][0],
+                "nombre": datos[0][1],
+                "Direccion": datos[0][2]
             }
         contriCursor.close()
         return contribuyente
