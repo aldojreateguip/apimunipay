@@ -37,7 +37,7 @@ SECRET_KEY = 'django-insecure-x8f4@!*at$i@qpasc$^bkuw@6_t517y^**7=aa!&p2mh@rs_yu
 DEBUG = False
 
 ALLOWED_HOSTS = ['127.0.0.1', DOMAIN]
-CSRF_TRUSTED_ORIGINS = ['https://apismunipay.munimaynas.gob.pe/', TUNNEL]
+CSRF_TRUSTED_ORIGINS = ['https://apismunipay.munimaynas.gob.pe/', 'https://munipay.munimaynas.gob.pe/', TUNNEL]
 
 
 
@@ -112,8 +112,19 @@ DATABASES = {
              'PORT': env('DB_PORT'),
              "OPTIONS": {"driver": "ODBC Driver 17 for SQL Server", 
              },
-         }
+         },
+     'test':{
+             'ENGINE': env('DB_ENGINE_TEST'),
+             'NAME': env('DB_NAME_TEST'),
+             'USER': env('DB_USER_TEST'),
+             'PASSWORD': env('DB_PASS_TEST'),
+             'HOST': env('DB_HOST_TEST'),
+             'PORT': env('DB_PORT_TEST'),
+             "OPTIONS": {"driver": "ODBC Driver 17 for SQL Server", 
+             },
+         },
 }
+
 
 
 # Password validation

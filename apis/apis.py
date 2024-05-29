@@ -5,7 +5,7 @@ from requests.auth import HTTPBasicAuth
 import requests, json
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.db import connection
+from django.db import connection, connections
 
 from django.conf import settings
 from django.db import transaction
@@ -16,6 +16,12 @@ from cryptography.fernet import Fernet
 cipher_key_hex = settings.CIPHER_KEY
 cipher_key = bytes.fromhex(cipher_key_hex)
 cipher_suite = Fernet(cipher_key)
+
+def get_db_connection(db_name):
+    """
+    Helper function to get the specified database connection.
+    """
+    return connections[db_name]
 
 # WORKING 
 # SE OBTIENEN LOS DATOS DEL CONTRIBUYENTE ENVIANDO EN VALOR DEL 
@@ -49,6 +55,7 @@ def getcontri(request):
                     query += ', '
                 query += ' @codigo=%s '
                 params.append(codigo)
+
 
             with connection.cursor() as cursor:
                 cursor.execute(query, params)
@@ -109,6 +116,7 @@ def get_deuda_filter(request):
 
             if not contribuyente:
                 return JsonResponse({'message': 'No se encontró registro del contribuyente'}, status=400)
+
 
             with connection.cursor() as cursor:
                 cursor.execute(anios_query, [codcontribuyente])
@@ -268,7 +276,8 @@ def limpiar_tablas(request):
             data = json.loads(request.body)
             check_query = 'delete from munipay_pre_pagos;'
             # check_query = 'delete from munipay_pagos;'
-
+            db = 'test'
+            connection = get_db_connection(db)
             with connection.cursor() as cursor:
                 try:
                     cursor.execute(check_query)
@@ -291,7 +300,8 @@ def revisar_tablas(request):
             # check_query = 'delete from munipay_pre_pagos;'
             # check_query = 'select * from munipay_pagos; select * from munipay_pre_pagos;'
             check_query = 'select * from munipay_pre_pagos;'
-
+            db = 'test'
+            connection = get_db_connection(db)
             with connection.cursor() as cursor:
                 try:
                     cursor.execute(check_query)
@@ -346,6 +356,8 @@ def agregar_prepago(request):
 
             check_query = 'SELECT COUNT(p.clavedeu) AS validar FROM munipay_pre_pagos AS p WHERE p.clavedeu=%s'
 
+            db = 'test'
+            connection = get_db_connection(db)
             with transaction.atomic():
                 cursor = connection.cursor()
                 cursor.execute(check_query, [clavedeu])
@@ -414,7 +426,8 @@ def agregar_pago(request):
 
             if nombtributo and nombtributo not in concepto_deudas:
                 raise ValueError(f"Concepto de deuda no válido: {nombtributo}")
-
+            db = 'test'
+            connection = get_db_connection(db)
             with transaction.atomic():
                 with connection.cursor() as cursor:
                     insert_query = """EXEC sp_mpay_insert_pago 
@@ -437,8 +450,8 @@ def agregar_pago(request):
                         metodo_pago, canal, fecha_creacion, fecha_operacion
                     ])
                     
-                    update_query = 'EXEC mpay_update_prepago @p_canalpago=%s, @p_clavedeu=%s'
-                    cursor.execute(update_query, [canal, clavedeu])
+                    # update_query = 'EXEC mpay_update_prepago @p_canalpago=%s, @p_clavedeu=%s'
+                    # cursor.execute(update_query, [canal, clavedeu])
 
             return JsonResponse({"message": "completado"}, status=200, safe=False)
         
