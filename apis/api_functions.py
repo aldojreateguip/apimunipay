@@ -14,23 +14,41 @@ from cryptography.fernet import Fernet
 
 # FUNCION PARA OBTENER DATOS DEL CONTRIBUYENTE
 def fn_getcontri(codigo):
-    with connection.cursor() as contriCursor:
-        contriCursor.execute('EXEC mpayGetContri @codigo=%s', [codigo])
-        datos = contriCursor.fetchall()
+    contriCursor = None
+    try:
+        with connection.cursor() as contriCursor:
+            contriCursor.execute('EXEC mpayGetContri @codigo=%s', [codigo])
+            datos = contriCursor.fetchall()
+            if not datos:
+                contribuyente = None
+                return contribuyente
+            
 
-        contribuyente = {
-            "CodContribuyente": datos[0][0],
-            "nombre": datos[0][1],
-            "Direccion": datos[0][2]
-        }
-    contriCursor.close()
-    return contribuyente
-
+            contribuyente = {
+                "CodContribuyente": datos[0][0],
+                "nombre": datos[0][1],
+                "Direccion": datos[0][2]
+            }
+        contriCursor.close()
+        return contribuyente
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500, safe=False)
+    finally:
+        if contriCursor:
+            contriCursor.close()
 
 def fn_agregar_prepago(data):
     try:
         # Determina la cantidad de items en el JSON basado en las claves
         num_items = len([key for key in data.keys() if key.startswith('clavedeu')])
+        if num_items > 10:
+            return False
+        # Validación de campos numerados
+        enumerated_fields = ['clavedeu', 'anodeu', 'cuota', 'description', 'amount']
+        for i in range(1, num_items + 1):
+            for field in enumerated_fields:
+                if f'{field}{i}' not in data:
+                    raise ValueError(f"Campo faltante: {field}{i}")
         with connection.cursor() as cursor:
             for i in range(1, num_items + 1):
                 clavedeu = data.get(f'clavedeu{i}')
@@ -52,52 +70,83 @@ def fn_agregar_prepago(data):
             cursor.close()
             return True
     except Exception as e:
-        return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500)
+        return str(e)
 
 
 def fn_agregar_pago(data):
-        try:
-            transaccion_id = data.get('transaccion_id')
-            divisa = data.get('divisa')
-            order_id = data.get('order_id')
-            metodo_pago = data.get('metodo_pago')
-            canal = data.get('canal')
-            tipo_transaccion = data.get('tipo_transaccion')
-            fecha_creacion = data.get('fecha_creacion')
-            fecha_operacion = data.get('fecha_operacion')
+    try:
+        required_fields = [
+            'transaccion_id', 'divisa', 'order_id', 'metodo_pago', 
+            'canal', 'tipo_transaccion', 'fecha_creacion', 'fecha_operacion', 'deuda'
+        ]
 
-            deudas = data['deuda']
-            num_items = len([key for key in deudas.keys() if key.startswith('clavedeu')])
-            # with transaction.atomic():
+        # Validación de campos requeridos
+        for field in required_fields:
+            if field not in data:
+                raise ValueError(f"Campo faltante: {field}")
+
+        transaccion_id = data['transaccion_id']
+        divisa = data['divisa']
+        order_id = data['order_id']
+        metodo_pago = data['metodo_pago']
+        canal = data['canal']
+        tipo_transaccion = data['tipo_transaccion']
+        fecha_creacion = data['fecha_creacion']
+        fecha_operacion = data['fecha_operacion']
+
+        concepto_deudas = {
+            'LIMPIEZA PUBLICA',
+            'PREDIAL',
+            'PARQUES / JARDINES',
+            'SERENAZGO'
+        }
+
+        deudas = data['deuda']
+        num_items = len([key for key in deudas.keys() if key.startswith('clavedeu')])
+        if num_items > 10:
+            return False
+
+        # Validación de campos numerados
+        enumerated_fields = ['clavedeu', 'anodeu', 'cuota', 'description', 'amount']
+        for i in range(1, num_items + 1):
+            for field in enumerated_fields:
+                if f'{field}{i}' not in deudas:
+                    raise ValueError(f"Campo faltante: {field}{i}")
+
+        with transaction.atomic():
             with connection.cursor() as cursor:
                 for i in range(1, num_items + 1):
-                    clavedeu = deudas.get(f'clavedeu{i}')
-                    anodeu = deudas.get(f'anodeu{i}')
-                    cuota = deudas.get(f'cuota{i}')
-                    nombtributo = deudas.get(f'description{i}')
-                    montopagado = deudas.get(f'amount{i}')
+                    clavedeu = deudas[f'clavedeu{i}']
+                    anodeu = deudas[f'anodeu{i}']
+                    cuota = deudas[f'cuota{i}']
+                    nombtributo = deudas[f'description{i}']
+                    montopagado = deudas[f'amount{i}']
 
-                    # print(divisa)
-                    # print(order_id)
-                    # print(metodo_pago)
-                    # print(canal)
-                    # print(tipo_transaccion)
-                    # print(fecha_creacion)
-                    # print(fecha_operacion)
-                    # print(clavedeu)
-                    # print(anodeu)
-                    # print(cuota)
-                    # print(nombtributo)
-                    # print(montopagado)
-                    print('# :::: registro ', i)
-                    insert_query = "EXEC sp_mpay_insert_pago @transaccion_id=%s, @clavedeu=%s, @divisa=%s, @tipo_transaccion=%s, @anodeu=%s, @cuota=%s, @nombtributo=%s, @order_id=%s, @montopagado=%s, @metodo_pago=%s, @canal=%s, @fecha_creacion=%s, @fecha_operacion=%s"
-                    cursor.execute(insert_query, [transaccion_id, clavedeu, divisa, tipo_transaccion, anodeu, cuota, nombtributo, order_id, montopagado, metodo_pago, canal, fecha_creacion, fecha_operacion])
-                    connection.commit()
-                    
-                    update_query = 'EXEC mpay_update_prepago @p_canalpago=%s, @p_clavedeu=%s'
-                    cursor.execute(update_query, [canal, clavedeu])
-                    connection.commit()
-                cursor.close()
-                return True
-        except Exception as e:
-            return JsonResponse({'message': 'Ocurrió un error en el servidor', 'error': str(e)}, status=500, safe=False)
+                    if nombtributo and nombtributo not in concepto_deudas:
+                        raise ValueError(f"Concepto de deuda no válido: {nombtributo}")
+
+                    insert_query = """EXEC sp_mpay_insert_pago 
+                                    @transaccion_id=%s, 
+                                    @clavedeu=%s, 
+                                    @divisa=%s, 
+                                    @tipo_transaccion=%s, 
+                                    @anodeu=%s, 
+                                    @cuota=%s, 
+                                    @nombtributo=%s, 
+                                    @order_id=%s, 
+                                    @montopagado=%s, 
+                                    @metodo_pago=%s, 
+                                    @canal=%s, 
+                                    @fecha_creacion=%s, 
+                                    @fecha_operacion=%s"""
+                    cursor.execute(insert_query, [
+                        transaccion_id, clavedeu, divisa, tipo_transaccion, 
+                        anodeu, cuota, nombtributo, order_id, montopagado, 
+                        metodo_pago, canal, fecha_creacion, fecha_operacion
+                    ])
+
+                    # update_query = 'EXEC mpay_update_prepago @p_canalpago=%s, @p_clavedeu=%s'
+                    # cursor.execute(update_query, [canal, clavedeu])
+        return True
+    except Exception as e:
+        return str(e)
