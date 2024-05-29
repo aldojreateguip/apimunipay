@@ -5,12 +5,21 @@ from requests.auth import HTTPBasicAuth
 import requests, json
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.db import connection
+from django.db import connection, connections
 
 from django.conf import settings
 from django.db import transaction
 
 from cryptography.fernet import Fernet
+
+
+
+def get_db_connection(db_name):
+    """
+    Helper function to get the specified database connection.
+    """
+    return connections[db_name]
+
 
 # FUNCION PARA OBTENER DATOS DEL CONTRIBUYENTE
 def fn_getcontri(codigo):
@@ -37,6 +46,7 @@ def fn_getcontri(codigo):
         if contriCursor:
             contriCursor.close()
 
+
 def fn_agregar_prepago(data):
     try:
         # Determina la cantidad de items en el JSON basado en las claves
@@ -49,6 +59,9 @@ def fn_agregar_prepago(data):
             for field in enumerated_fields:
                 if f'{field}{i}' not in data:
                     raise ValueError(f"Campo faltante: {field}{i}")
+        
+        db = 'test'
+        connection = get_db_connection(db)
         with connection.cursor() as cursor:
             for i in range(1, num_items + 1):
                 clavedeu = data.get(f'clavedeu{i}')
@@ -113,6 +126,8 @@ def fn_agregar_pago(data):
                 if f'{field}{i}' not in deudas:
                     raise ValueError(f"Campo faltante: {field}{i}")
 
+        db = 'test'
+        connection = get_db_connection(db)
         with transaction.atomic():
             with connection.cursor() as cursor:
                 for i in range(1, num_items + 1):
